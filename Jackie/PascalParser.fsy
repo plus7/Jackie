@@ -1,0 +1,497 @@
+﻿%{
+
+open PascalAst
+
+%}
+
+// The start token becomes a parser function in the compiled code:
+%start start
+
+// These are the terminal tokens of the grammar along with the types of
+// the data carried by each token:
+%token <System.Int32> DIGIT_SEQ
+%token <System.Double> UNSIGNED_REAL
+%token <System.String> IDENTIFIER
+%token <System.String> STRING
+%token PLUS MINUS ASTER	SLASH
+%token AND ARRAY ASSIGN BEGIN END CASE COLON CONST COMMA DIV DO DOT DOUBLEDOT DOWNTO ELSE EQUAL FILE FOR FUNCTION GE GOTO GT LT LE
+%token IF IN LABEL LBRACKET MOD NIL NOT NOTEQUAL OF OR PACKED PROCEDURE PROGRAM RBRACKET RECORD REPEAT SEMICOLON SET 
+%token THEN TO TYPE UNTIL UPARROW VAR WHILE WITH
+%token LPAREN RPAREN
+%token EOF
+
+// This is the type of the data produced by a successful reduction of the 'start'
+// symbol:
+
+%type < PascalAst.Program_t > start
+
+%%
+
+start: Program { $1 }
+
+Program:
+    | Program_Heading SEMICOLON Block DOT EOF { Program( $1, $3 ) }
+
+Program_Heading:
+    | PROGRAM Ident { ProgramHeading( $2, [] ) }
+    | PROGRAM Ident LPAREN Ident_list RPAREN { ProgramHeading( $2, $4 ) }
+	
+Block:
+    | Label_decl_part
+	  Const_def_part
+	  Type_def_part
+  	  Var_decl_part
+	  Proc_and_func_decl_part
+	  Stmt_part { Block($1, $2, $3, $4, $5, $6) }
+
+//--------------------------------------------------------
+// PRIMITIVES
+
+Signed_num:
+    | Signed_int  { Integer( $1 ) }
+    | Signed_real { Float( $1 ) }
+
+Signed_int:
+    | PLUS  DIGIT_SEQ  { $2 }
+    | MINUS DIGIT_SEQ  { -1 * $2 }
+
+Signed_real:
+    | PLUS  UNSIGNED_REAL { $2 }
+    | MINUS UNSIGNED_REAL { -1.0 * $2 }
+	
+Unsigned_num:
+    | DIGIT_SEQ     { Integer( $1 ) }
+    | UNSIGNED_REAL { Float( $1 ) }
+
+Const:
+    | Unsigned_num { ConstNumber($1) }
+    | Signed_num   { ConstNumber($1) }
+    | Const_ident  { ConstIdent($1) }
+    | PLUS Const_ident { ConstIdent( $2 ) }
+    | MINUS Const_ident { ConstMinusIdent( $2 ) }
+    | STRING { ConstString($1) }
+
+Const_ident:
+    | IDENTIFIER { Ident($1) }
+
+Ident:
+    | IDENTIFIER { Ident($1) }
+	
+Ident_list:
+    | Ident { [$1] }
+    | Ident_list COMMA Ident { $1 @ [$3] }
+
+//--------------------------------------------------------
+// TYPE
+
+New_type:
+    | New_ordinal_type { NewOrdinalType($1) }
+    | New_structured_type { NewStructuredType( $1 ) }
+    | New_pointer_type { NewPointerType( $1 ) }
+	
+New_ordinal_type:
+    | Enum_type { EnumType($1) } 
+    | Subrange_type { $1 }
+
+Enum_type:
+    | LPAREN Ident_list RPAREN { $2 }
+	
+Subrange_type:
+    | Const DOUBLEDOT Const  { SubrangeType( $1, $3 ) }
+
+New_structured_type:
+    | Unpacked_structured_type        { UnpackedStructuredType($1) }
+    | PACKED Unpacked_structured_type { PackedStructuredType($2)   }
+
+Unpacked_structured_type:
+    | Array_type  { $1 }
+    | Record_type { $1 }
+	| Set_type    { $1 }
+    | File_type   { $1 }
+
+Array_type:
+    | ARRAY LBRACKET Index_type_list RBRACKET OF Component_type { ArrayType( $3, $6 ) }
+
+Index_type:
+    | Ordinal_type { OrdinalType($1) }
+
+Index_type_list:
+    | Index_type { [$1] }
+    | Index_type COMMA Index_type_list { $1 :: $3 }
+
+Ordinal_type:
+    | New_ordinal_type { NewOrdinalType_OT($1) }
+	| Ordinal_type_ident { OrdinalTypeIdent($1) }
+
+Ordinal_type_ident:
+    | Type_ident { $1 }
+
+Component_type:
+    | Type_denoter { TypeDenoter($1) }
+
+Type_denoter:
+    | Type_ident { TypeIdent($1) }
+    | New_type { NewType($1) }
+
+Type_ident:
+    | IDENTIFIER { Ident($1) }
+	
+Record_type:
+    | RECORD Record_section_list END                        { RecordType($2, NoVariantPart) }
+    | RECORD Record_section_list SEMICOLON Variant_part END { RecordType($2, $4) }
+    | RECORD Variant_part END                               { RecordType([], $2) }
+	
+Record_section_list:
+    | Record_section                               { [$1] }
+    | Record_section_list SEMICOLON Record_section { $1 @ [$3] }
+		
+Record_section:
+    | Ident_list COLON Type_denoter       { RecordSection($1, $3) }
+	
+Variant_part:
+    | CASE Variant_selector OF Variant_list SEMICOLON { VariantPart($2, $4) }
+    | CASE Variant_selector OF Variant_list           { VariantPart($2, $4) }
+    | { NoVariantPart }
+
+Variant_selector:
+    | Tag_field COLON Tag_type { VariantSelector(TagField($1), TagType($3)) }
+    | Tag_type                 { VariantSelector(TagField(Ident("")), TagType($1)) } //""ってこれでいいんか？
+
+Variant_list:
+    | Variant                        { [$1] }
+	| Variant_list SEMICOLON Variant { $1 @ [$3] }
+	
+Tag_field:
+    | IDENTIFIER { Ident($1) }
+
+Tag_type:
+    | IDENTIFIER { Ident($1) }
+
+Variant:
+    | Case_const_list COLON LPAREN Record_section_list                        RPAREN { Variant($1, $4, NoVariantPart) }
+    | Case_const_list COLON LPAREN Record_section_list SEMICOLON Variant_part RPAREN { Variant($1, $4, $6) }
+    | Case_const_list COLON LPAREN Variant_part                               RPAREN { Variant($1, [], $4) }
+	
+Case_const:
+    | Const { $1 }
+	
+Case_const_list:
+    | Case_const                        { [$1] }
+    | Case_const COMMA Case_const_list  { $1 :: $3 }
+	
+Set_type:
+    | SET OF Base_type   { SetType( $3 ) }
+
+Base_type:
+    | Ordinal_type       { OrdinalType_ST( $1 ) }
+
+File_type:
+    | FILE OF Component_type { FileType( ComponentType_FT( $3 ) ) }
+	
+New_pointer_type:
+    | UPARROW Domain_type         { DomainType( $2 ) }
+
+Domain_type:
+    | Type_ident             { $1 }
+
+//--------------------------------------------------------
+// EXPRESSION
+
+Expr:
+    | Simple_expr                      { SimpleExpr($1) }
+    | Simple_expr EQUAL    Simple_expr { Eq($1, $3) }
+    | Simple_expr NOTEQUAL Simple_expr { Neq($1, $3) }
+    | Simple_expr LT       Simple_expr { Lt($1, $3) }
+    | Simple_expr GT       Simple_expr { Gt($1, $3) }
+    | Simple_expr LE       Simple_expr { Le($1, $3) }
+    | Simple_expr GE       Simple_expr { Ge($1, $3) }
+    | Simple_expr IN       Simple_expr { In($1, $3) }
+Simple_expr:
+    | Term_list       { $1 }
+    | PLUS  Term_list { $2 }
+    | MINUS Term_list { Neg($2) }
+Term_list:
+    | Term                 { Term($1) }
+    | Term_list PLUS  Term { Add($1, $3) }
+    | Term_list MINUS Term { Sub($1, $3) }
+    | Term_list OR    Term { Or ($1, $3) }
+Term:
+    | Factor             { Factor($1)  }
+    | Term ASTER Factor  { Mul($1, $3) }
+    | Term SLASH Factor  { Div($1, $3) }
+    | Term DIV Factor    { DivI($1, $3) }
+    | Term MOD Factor    { Mod($1, $3) }
+    | Term AND Factor    { And($1, $3) }
+Factor:
+    | Var_access         { VarAccess($1) }
+    | Unsigned_const     { UnsignedConst($1) }
+    | Func_design        { $1 }
+    | Set_ctor           { SetCtor($1) }
+    | LPAREN Expr RPAREN { Expr( $2 ) }
+    | NOT Factor         { Not( $2 ) }
+Unsigned_const:
+    | Unsigned_num { ConstNumber($1) }
+    | STRING       { ConstString($1) }
+    | Const_ident  { ConstIdent($1) }
+    | NIL          { Nil }
+
+Var_access:
+    | Entire_var     { EntireVar($1) }
+	| Component_var  { ComponentVar($1) }
+	| Ident_var      { IdentVar($1) }
+//	| Buffer_var     { BufferVar($1) }
+
+Entire_var:
+    | IDENTIFIER { Ident($1) }
+
+Component_var:
+    | Indexed_var { $1 }
+    | Field_design{ $1 }
+
+Indexed_var:
+    | Var_access LBRACKET Index_expr_list RBRACKET { IndexedVar($1, $3) }
+Index_expr_list:
+    | Expr                       { [$1] }
+    | Index_expr_list COMMA Expr { $1 @ [$3] }
+
+Field_design:
+    | Var_access DOT IDENTIFIER { FieldDesign( $1, Ident($3) ) } 
+	
+Ident_var:
+    | Var_access UPARROW { $1 }
+	
+Func_design:
+    | Func_ident                   { FuncDesign($1, []) }
+    | Func_ident Actual_param_list { FuncDesign($1, $2) }
+Func_ident:
+    | IDENTIFIER { Ident($1) }
+
+Actual_param_list:
+    | LPAREN Actual_param_comma_list RPAREN { $2 }
+
+Actual_param_comma_list:
+    | Actual_param                               { [$1] }
+    | Actual_param_comma_list COMMA Actual_param { $1 @ [$3] }
+
+Actual_param:
+    | Expr       { ParamExpr($1) }
+    | Var_access { ParamVarAcc($1) }
+    | IDENTIFIER { ParamProcOrFunc(Ident($1)) }
+
+Proc_ident:
+    | IDENTIFIER { Ident($1) }
+
+Set_ctor:
+    | LBRACKET RBRACKET { [] }
+    | LBRACKET Member_design_list RBRACKET { $2 }
+
+Member_design_list:
+    | Member_design { [$1] }
+    | Member_design_list COMMA Member_design { $1 @ [$3] }
+
+Member_design:
+    | Expr                 { MemberDesignPt( $1 ) }
+    | Expr DOUBLEDOT Expr  { MemberDesignRange( $1, $3 ) }
+
+//--------------------------------------------------------
+// CONSTANT DEFINITION
+
+Const_def_part:
+    | { [] }
+    | CONST Const_list { $2 }
+Const_list:
+    | Const_list Const_def  { $1 @ [$2] }
+    | Const_def { [$1] }
+Const_def:
+    | IDENTIFIER EQUAL Const SEMICOLON { ConstDef( Ident($1), $3 ) }
+
+//--------------------------------------------------------
+// LABEL DECLARATION
+
+Label_decl_part:
+    | { [] }
+    | LABEL Label_list SEMICOLON { $2 }
+Label_list:
+    | DIGIT_SEQ { [Integer($1)] }
+    | Label_list COMMA DIGIT_SEQ { $1 @ [Integer($3)] }
+
+//--------------------------------------------------------
+// TYPE DEFINITION
+
+Type_def_part:
+    |                    { [] }
+    | TYPE Type_def_list { $2 }
+
+Type_def_list:
+    | Type_def                { [$1] }
+    | Type_def_list Type_def { $1 @ [$2] }
+
+Type_def:
+    | Ident EQUAL Type_denoter SEMICOLON { TypeDef($1, $3) }
+	
+//--------------------------------------------------------
+// VARIABLE DECLARATION
+
+Var_decl_part:
+    |                   { [] }
+    | VAR Var_decl_list { $2 }
+
+Var_decl_list:
+    | Var_decl               { [$1] }
+    | Var_decl_list Var_decl { $1 @ [$2] }
+
+Var_decl:
+    | Ident_list COLON Type_denoter SEMICOLON   { VarDecl($1, $3) }
+
+//--------------------------------------------------------
+// STATEMENT
+
+Stmt_part:
+    | Compound_stmt { $1 }
+
+Compound_stmt:
+    | BEGIN Stmt_seq END { $2 }
+	
+Stmt_seq:
+    | Stmt  { [$1] }
+    | Stmt_seq SEMICOLON Stmt  { $1 @ [$3] }
+
+Stmt:
+    | Simple_stmt                    { $1 }
+    | DIGIT_SEQ COLON Simple_stmt    { LabeledStmt(Integer($1), $3) }
+    | Structured_stmt                { $1 }
+	| DIGIT_SEQ COLON Structured_stmt{ LabeledStmt(Integer($1), $3) }
+
+Simple_stmt:
+    |                 { EmptyStmt }
+    | Assign_stmt     { AssignStmt($1) }
+    | Proc_stmt       { $1 }
+    | GOTO DIGIT_SEQ  { GotoStmt(Integer($2)) }
+
+Assign_stmt:
+    | Var_access ASSIGN Expr { VarAssign ($1, $3) }
+    | Ident ASSIGN Expr { FuncAssign($1, $3) }
+
+Proc_stmt:
+    | Proc_ident Param_list  { ProcStmt($1, $2) }
+Param_list:
+    | { [] }
+    | Actual_param_list { $1 }
+//    | Read_param_list
+//    | Readln_param_list
+//    | Write_param_list
+//    | Writeln_param_list
+
+Structured_stmt:
+    | Compound_stmt    { CompoundStmt($1) }
+    | Conditional_stmt { $1 }
+    | Repetitive_stmt  { $1 }
+    | With_stmt        { $1 }
+
+Conditional_stmt:
+    | If_stmt          { $1 }
+    | Case_stmt        { $1 }
+
+If_stmt:
+    | IF Expr THEN Stmt ELSE Stmt { IfStmt($2, $4, $6) }
+    | IF Expr THEN Stmt           { IfStmt($2, $4, EmptyStmt) }
+	
+Case_stmt:
+    | CASE Expr OF Case_list SemiColon_or_none END { CaseStmt($2, $4) }
+	
+Case_list:
+    | Case_list_elm                     { [$1] }
+    | Case_list SEMICOLON Case_list_elm { $1 @ [$3] }
+Case_list_elm:
+    | Case_const_list COLON Stmt        { Case($1, $3) }
+
+SemiColon_or_none:
+    | {}
+    | SEMICOLON {}
+
+Repetitive_stmt:
+    | Repeat_stmt { $1 }
+    | While_stmt { $1 }
+    | For_stmt { $1 }
+
+Repeat_stmt:
+    | REPEAT Stmt_seq UNTIL Expr { RepeatStmt($2, $4) }
+
+While_stmt:
+    | WHILE Expr DO Stmt { WhileStmt($2, $4) }
+	
+For_stmt:
+    | FOR Entire_var ASSIGN Expr To_or_downto Expr DO Stmt { ForStmt($2, $4, $5, $6, $8) }
+To_or_downto:
+    | TO { To }
+    | DOWNTO { Downto }
+
+With_stmt:
+    | WITH Record_var_list DO Stmt { WithStmt($2, $4) }
+	
+Record_var_list:
+    | Var_access { [$1] }
+    | Record_var_list COMMA Var_access { $1 @ [$3] }
+
+//--------------------------------------------------------
+// FUNCTION and PROCEDURE DECLARATION
+
+Proc_and_func_decl_part:
+    | Proc_or_func_decl                         { [$1] }
+	| Proc_and_func_decl_part Proc_or_func_decl { $1 @ [$2] }
+    | { [] }
+
+Proc_or_func_decl:
+    | Proc_decl SEMICOLON { $1 }
+    | Func_decl SEMICOLON { $1 }
+
+Proc_decl:
+    | Proc_heading SEMICOLON Ident { ProcDecl($1, Directive($3)) }
+	| Proc_heading SEMICOLON Block     { ProcDecl($1, ProcBody($3)) }
+
+Proc_heading:
+    | PROCEDURE Ident                   { ProcHeading( $2, [] ) }
+    | PROCEDURE Ident Formal_param_list { ProcHeading( $2, $3 ) }
+
+Func_decl:
+    | Func_heading SEMICOLON Ident    { FuncDecl($1, Directive($3)) }
+    | Func_identification SEMICOLON Block { FuncDecl($1, FuncBody($3))  }
+ 	| Func_heading SEMICOLON Block        { FuncDecl($1, FuncBody($3))  }
+
+Func_heading:
+    | FUNCTION Ident COLON Result_type                   
+                                        { FuncHeading( $2, ResultType($4), [] ) }
+    | FUNCTION Ident Formal_param_list COLON Result_type
+                                        { FuncHeading( $2, ResultType($5), $3 ) }
+
+Func_identification:
+    | FUNCTION Ident { FuncHeading( $2, Void, [] ) }
+
+Result_type:
+    | Ident { $1 } 
+
+Formal_param_list:
+    | LPAREN Formal_param_section_list RPAREN { $2 }
+
+Formal_param_section_list:
+    | Formal_param_section { [$1] }
+    | Formal_param_section_list SEMICOLON Formal_param_section { $1 @ [$3] }
+
+Formal_param_section:
+    | Val_param_spec { $1 }
+    | Var_param_spec { $1 }
+    | Proc_param_spec{ $1 }
+    | Func_param_spec{ $1 }
+//    | Conformant_array_param_spec
+
+Func_param_spec:
+    | Func_heading { FuncParamSpec( $1 ) }
+
+Proc_param_spec:
+    | Proc_heading { ProcParamSpec( $1 ) }
+
+Val_param_spec:
+    | Ident_list COLON Ident { ValParamSpec($1, $3) }
+
+Var_param_spec:
+    | VAR Ident_list COLON Ident { VarParamSpec($2, $4) }

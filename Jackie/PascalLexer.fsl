@@ -1,0 +1,89 @@
+﻿{
+module PascalLexer
+open System
+open PascalParser
+open Microsoft.FSharp.Text.Lexing
+
+let lexeme lexbuf =
+    LexBuffer<char>.LexemeString lexbuf
+}
+
+// These are some regular expression definitions
+let letter = ['a'-'z''A'-'Z''_']
+let digit = ['0'-'9']
+let string_char = [^'\'']
+
+let whitespace = [' ' '\t' ]
+let newline = ('\n' | '\r' '\n')
+
+rule tokenize = parse
+| whitespace	{ tokenize lexbuf }
+| newline       { tokenize lexbuf }
+// Operators
+| "+"			{ PLUS }
+| "-"			{ MINUS }
+| "*"			{ ASTER }
+| "/"			{ SLASH }
+| "="			{ EQUAL }
+| "<"			{ LT }
+| ">"			{ GT }
+| "<>"			{ NOTEQUAL }
+| "<="			{ LE }
+| ">="			{ GE }
+// Misc
+| "["			{ LBRACKET }
+| "]"			{ RBRACKET }
+| "."			{ DOT }
+| ","			{ COMMA }
+| ":"			{ COLON }
+| ";"			{ SEMICOLON }
+| "@"			{ UPARROW }
+| "("			{ LPAREN }
+| ")"			{ RPAREN }
+| ":="			{ ASSIGN }
+| ".."			{ DOUBLEDOT }
+// Word Symbol
+| "and"			{ AND }
+| "array"		{ ARRAY }
+| "begin"		{ BEGIN }
+| "case"		{ CASE }
+| "const"		{ CONST }
+| "div"			{ DIV }
+| "do"			{ DO }
+| "downto"		{ DOWNTO }
+| "else"		{ ELSE }
+| "end"			{ END }
+| "file"		{ FILE }
+| "for"			{ FOR }
+| "function"	{ FUNCTION }
+| "goto"		{ GOTO }
+| "if"			{ IF }
+| "in"			{ IN }
+| "label"		{ LABEL }
+| "mod"			{ MOD }
+| "nil"			{ NIL }
+| "not"			{ NOT }
+| "of"			{ OF }
+| "or"			{ OR }
+| "packed"		{ PACKED }
+| "procedure"	{ PROCEDURE }
+| "program"		{ PROGRAM }
+| "record"		{ RECORD }
+| "repeat"		{ REPEAT }
+| "set"			{ SET }
+| "then"		{ THEN }
+| "to"			{ TO }
+| "type"		{ TYPE }
+| "until"		{ UNTIL }
+| "var"			{ VAR }
+| "while"		{ WHILE }
+| "with"		{ WITH }
+// Numberic constants
+| digit+    { DIGIT_SEQ (Int32.Parse(lexeme lexbuf)) }
+| digit+('.'digit+)?(['e''E']['+''-']?digit+)?  { UNSIGNED_REAL (Double.Parse(lexeme lexbuf)) }
+//| digit+('.'digit+)?(['e''E']digit+)?  { UNSIGNED_REAL (Double.Parse(lexeme lexbuf)) }
+| letter(letter|digit)* { IDENTIFIER (lexeme lexbuf) }
+| '\''('\'''\''|string_char)*'\'' { STRING (lexeme lexbuf) (*lexbuf*)(*(string(lexeme lexbuf))*) }
+// EOF
+| eof   { EOF }
+
