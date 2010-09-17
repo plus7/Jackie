@@ -1,0 +1,88 @@
+6.1.1     digit = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+let digit = ['0'-'9']
+
+6.1.1     letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z'
+let letter = ['a'-'z''A'-'Z']
+
+6.1.2     special-symbol = '+' | '-' | '*' | '/' | '=' | '<' | '>' | '[' | ']' | '.' | ',' | ':' | ';' | '"' | '(' | ')' | '<>' | ' <=' | '>=' | ' :=' | '..' | word-symbol
+6.1.2     word-symbol = 'and' | 'array' | 'begin' | 'case' | 'const' | 'div' | 'do' | 'downto' | 'else' | 'end' | 'file' | 'for' | 'function' | 'goto' | 'if' | 'in' | 'label' | 'mod' | 'nil' | 'not' | 'of' | 'or' | 'packed' | 'procedure' | 'program' | 'record' | 'repeat' | 'set' | 'then' | 'to' | 'type' | 'until' | 'var' | 'while' | 'with'
+
+6.1.3     identifier = letter { letter | digit }
+6.1.4     directive = letter { letter | digit }
+
+6.1.5     digit-sequence = digit { digit }
+
+6.1.5     fractional-part = digit-sequence
+Digit_seq:
+    | Fractional_part
+
+6.1.5     scale-factor = [ sign ] digit-sequence
+Scale_factor:
+    | Sign Digit_seq
+    | Digit_seq
+
+6.1.5     sign = '+' | '-'
+Sign:
+    | PLUS
+    | MINUS
+
+6.1.5     signed-integer = [ sign ] unsigned-integer
+Signed_int:
+    | Sign Unsigned_int
+    | Unsigned_int
+
+6.1.5     signed-number = signed-integer | signed-real
+Signed_num:
+    | Signed_int
+    | Signed_real
+
+6.1.5     signed-real = [ sign ] unsigned-real
+Signed_real:
+    | Unsigned_real
+    | Sign Unsigned_real
+
+6.1.5     unsigned-integer = digit-sequence
+Unsigned_int:
+    | Digit_seq
+
+6.1.5     unsigned-number = unsigned-integer | unsigned-real
+Unsigned_num:
+    | Unsigned_int
+    | Unsigned_real
+
+6.1.5     unsigned-real = digit-sequence '.' fractional-part [ 'e' scale-factor ] | digit-sequence 'e' scale-factor
+Unsigned_real:
+    | Digit_seq DOT Fractional_part 
+    | Digit_seq DOT Fractional_part E Scale_factor
+    | Digit_seq E Scale_factor
+
+
+
+6.1.7     apostrophe-image = '"'
+Apostrophe_image:
+    | '"'
+
+//Ç±ÇÍÇÕçlÇ¶íºÇµÇΩÇŸÇ§Ç™Ç¢Ç¢ÅH
+6.1.7     character-string = ''' string-element { string-element } '''
+Char_str:
+    | APO String_element APO
+
+6.1.7     string-character = one-of-a-set-of-implementation-defined-characters
+Str_char:
+    | //hogehogehoge
+
+//ï∂éöóÒÇÃàµÇ¢ÇÕçlÇ¶íºÇµÇΩÇŸÇ§Ç™Ç¢Ç¢Ç»Ç‚Ç¡Çœ
+6.1.7     string-element = apostrophe-image | string-character
+Str_element:
+    | Apostrophe_image
+    | Str_char
+
+
+(*
+*)
+(*	
+//6.4.3.1   structured-type = new-structured-type | structured-type-identifier
+//actual-parameter-list = '(' actual-parameter { ',' actual-parameter } ')' 
+//adding-operator = '+' | '-' | 'or'
+//apostrophe-image = '"'
+*)

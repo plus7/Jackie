@@ -1,0 +1,76 @@
+6.4.1     pointer-type-identifier = type-identifier
+Pointer_type_ident:
+    | Type_ident
+	
+6.4.1     structured-type-identifier = type-identifier
+Structured_type_ident:
+    | Type_ident
+
+6.4.2.1   real-type-identifier = type-identifier
+Real_type_ident:
+    | Type_ident
+
+6.4.2.1   simple-type = ordinal-type | real-type-identifier
+Simple_type:
+    | Ordinal_type
+    | Real_type_ident
+	
+6.4.4     pointer-type = new-pointer-type | pointer-type-identifier
+Pointer_type:
+    | New_pointer_type
+    | Pointer_type_ident
+		
+6.6.3.7.1 bound-identifier = identifier
+Bound_ident:
+    | Ident
+
+6.6.3.7.1 conformant-array-parameter-specification = value-conformant-array-specification | variable-conformant-array-specification
+Conformant_array_param_spec:
+    | Val_conformant_array_spec
+	| Var_conformant_array_spec
+
+6.6.3.7.1 conformant-array-schema = packed-conformant-array-schema | unpacked-conformant-array-schema
+Conformant_array_schema:
+    | Packed_conformant_array_schema
+    | Unpacked_conformant_array_schema
+
+6.6.3.7.1 factor = bound-identifier
+Factor:
+    | Bound_ident
+
+6.6.3.7.1 formal-parameter-section = conformant-array-parameter-specification
+Formal_param_section:
+    | Conformant_array_param_spec
+
+6.6.3.7.1 index-type-specification = identifier '..' identifier ':' ordinal-type-identifier
+Index_type_spec:
+    | Ident DOUBLEDOT Ident COLON Ordinal_type_ident
+
+6.6.3.7.1 packed-conformant-array-schema = 'packed' 'array' '[' index-type-specification ']' 'of' type-identifier
+Packed_conformant_array_schema:
+    | PACKED ARRAY RRACKET Index_type_spec LBRACKET OF Type_ident
+
+6.6.3.7.1 unpacked-conformant-array-schema = 'array' '[' index-type-specification { ';' index-type-specification } ']' 'of' ( type-identifier | conformant-array-schema )
+Unpacked_conformant_array_schema:
+    | ARRAY LBRACKET Index_type_spec_list RBRACKET OF Type_ident
+    | ARRAY LBRACKET Index_type_spec_list RBRACKET OF Conformant_array_schema
+Index_type_spec_list:
+    | Index_type_spec
+ 	| Index_type_spec_list SEMICOLON Index_type_spec
+
+6.6.3.7.1 value-conformant-array-specification = identifier-list ':' conformant-array-schema
+Val_conformant_array_spec:
+    | Ident_list COLON Conformant_array_schema
+
+6.6.3.7.1 variable-conformant-array-specification = 'var' identifier-list ':' conformant-array-schema
+Var_conformant_array_spec:
+    | VAR Ident_list COLON Conformant_array_schema
+
+	
+6.9.1     read-parameter-list = '(' [ file-variable ',' ] variable-access { ',' variable-access } ')'
+6.9.2     readln-parameter-list = [ '(' ( file-variable | variable-access ) { ',' variable-access } ')' ]
+6.9.3     write-parameter = expression [ ':' expression [ ':' expression ] ]
+6.9.3     write-parameter-list = '(' [ file-variable ',' ] write-parameter { ',' write-parameter } ')'
+6.9.4     writeln-parameter-list = [ '(' ( file-variable | write-parameter ) { ',' write-parameter } ')' ]
+
+
